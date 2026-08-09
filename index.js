@@ -10,7 +10,6 @@ const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildPresences, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
 });
 
-// ملف لحفظ الأشخاص المضافين (الأونرز الإضافيين) لكي لا يختفوا عند إعادة تشغيل البوت
 const OWNERS_FILE = './owners.json';
 let extraOwners = [];
 if (fs.existsSync(OWNERS_FILE)) {
@@ -27,7 +26,6 @@ function saveOwners() {
 
 const TARGET_ROLE_ID = '1535375782736560128';
 
-// دالة للتحقق مما إذا كان المستخدم يملك الصلاحية (صاحب السيرفر، رول البث، أو أونر مضاف بالأمر)
 function hasPermission(member) {
     if (member.id === member.guild.ownerId) return true;
     if (member.roles.cache.has(TARGET_ROLE_ID)) return true;
@@ -41,7 +39,7 @@ client.on('messageCreate', async message => {
     const args = message.content.split(' ');
     const command = args[0];
 
-    // أمر إضافة أونر جديد: addowner @منشن
+    // أمر إضافة أونر جديد
     if (command === 'addowner') {
         if (!hasPermission(message.member)) return message.react('❌');
         
@@ -62,7 +60,7 @@ client.on('messageCreate', async message => {
         return message.react('✅');
     }
 
-    // أمر إزالة أونر: removeowner @منشن
+    // أمر إزالة أونر
     if (command === 'removeowner') {
         if (!hasPermission(message.member)) return message.react('❌');
 
@@ -86,16 +84,17 @@ client.on('messageCreate', async message => {
     // أمر البث bc
     if (command === 'bc') {
         if (!hasPermission(message.member)) {
-            return message.react('❌'); // رياكشن خطأ إذا لم يكن يملك الصلاحية
+            return message.react('❌');
         }
 
         const textToSend = message.content.slice(3).trim();
         if (!textToSend) return message.react('❌');
 
+        // تحديث أسماء الأزرار لتكون واضحة (أوفلاين، أونلاين، الكل)
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`bc_offline_${Buffer.from(textToSend).toString('base64')}`).setLabel('10').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId(`bc_online_${Buffer.from(textToSend).toString('base64')}`).setLabel('11').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId(`bc_all_${Buffer.from(textToSend).toString('base64')}`).setLabel('1010').setStyle(ButtonStyle.Secondary)
+            new ButtonBuilder().setCustomId(`bc_offline_${Buffer.from(textToSend).toString('base64')}`).setLabel('أوفلاين').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId(`bc_online_${Buffer.from(textToSend).toString('base64')}`).setLabel('أونلاين').setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId(`bc_all_${Buffer.from(textToSend).toString('base64')}`).setLabel('الكل').setStyle(ButtonStyle.Secondary)
         );
 
         await message.reply({ components: [row] });
@@ -114,8 +113,10 @@ client.on('interactionCreate', async interaction => {
         await interaction.guild.members.fetch();
         let members = interaction.guild.members.cache.filter(m => !m.user.bot);
         
+        // التوزيع الصحيح حسب الزر المضغوط
         if (type === 'offline') members = members.filter(m => !m.presence || m.presence.status === 'offline');
         else if (type === 'online') members = members.filter(m => m.presence && m.presence.status !== 'offline');
+        // زر 'all' سيشمل الجميع بدون فلترة
 
         let count = 0;
         for (const [id, member] of members) {
