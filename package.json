@@ -1,0 +1,13 @@
+{
+  "name": "broadcast-bot",
+  "version": "1.0.0",
+  "description": "Discord Broadcast Bot with Buttons",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.0",
+    "express": "^4.19.2"
+  }
+}
