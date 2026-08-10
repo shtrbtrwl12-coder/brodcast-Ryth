@@ -1,128 +1,109 @@
-const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const express = require('express');
-const fs = require('fs');
-
-const app = express();
-app.get('/', (req, res) => res.send('Bot is alive!'));
-app.listen(process.env.PORT || 3000);
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildPresences, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers
+    ]
 });
 
-const OWNERS_FILE = './owners.json';
-let extraOwners = [];
-if (fs.existsSync(OWNERS_FILE)) {
-    try {
-        extraOwners = JSON.parse(fs.readFileSync(OWNERS_FILE, 'utf8'));
-    } catch (e) {
-        extraOwners = [];
-    }
-}
+// أيدي الرول المسموح له استخدام البرودكاست
+const ALLOWED_ROLE_ID = "1535375782736560128";
 
-function saveOwners() {
-    fs.writeFileSync(OWNERS_FILE, JSON.stringify(extraOwners));
-}
+client.on('ready', () => {
+    console.log(`Logged in as ${client.user.tag}!`);
+});
 
-const TARGET_ROLE_ID = '1535375782736560128';
-
-function hasPermission(member) {
-    if (member.id === member.guild.ownerId) return true;
-    if (member.roles.cache.has(TARGET_ROLE_ID)) return true;
-    if (extraOwners.includes(member.id)) return true;
-    return false;
-}
-
-client.on('messageCreate', async message => {
+client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
 
-    const args = message.content.split(' ');
-    const command = args[0];
-
-    // أمر إضافة أونر جديد
-    if (command === 'addowner') {
-        if (!hasPermission(message.member)) return message.react('❌');
-        
-        let targetUser = message.mentions.users.first();
-        if (!targetUser && args[1]) {
-            try { targetUser = await client.users.fetch(args[1]); } catch (e) {}
-        }
-        if (!targetUser && message.reference) {
-            const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
-            targetUser = repliedMsg.author;
+    // التحقق من الأمر bc
+    if (message.content.startsWith('bc')) {
+        // التحقق من الرول
+        if (!message.member.roles.cache.has(ALLOWED_ROLE_ID)) {
+            return message.react('❌').catch(() => {});
         }
 
-        if (!targetUser) return message.reply('يرجى منشن الشخص أو إيدي الشخص المراد إضافته.');
-        if (extraOwners.includes(targetUser.id)) return message.reply('هذا الشخص مضاف مسبقاً.');
-
-        extraOwners.push(targetUser.id);
-        saveOwners();
-        return message.react('✅');
-    }
-
-    // أمر إزالة أونر
-    if (command === 'removeowner') {
-        if (!hasPermission(message.member)) return message.react('❌');
-
-        let targetUser = message.mentions.users.first();
-        if (!targetUser && args[1]) {
-            try { targetUser = await client.users.fetch(args[1]); } catch (e) {}
-        }
-        if (!targetUser && message.reference) {
-            const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
-            targetUser = repliedMsg.author;
+        // استخراج النص المراد إرساله بعد كلمة bc
+        const args = message.content.slice(2).trim();
+        if (!args) {
+            return message.react('❌').catch(() => {});
         }
 
-        if (!targetUser) return message.reply('يرجى منشن الشخص أو إيدي الشخص المراد إزالته.');
-        if (!extraOwners.includes(targetUser.id)) return message.reply('هذا الشخص ليس في قائمة الأونرز الإضافيين.');
-
-        extraOwners = extraOwners.filter(id => id !== targetUser.id);
-        saveOwners();
-        return message.react('✅');
-    }
-
-    // أمر البث bc
-    if (command === 'bc') {
-        if (!hasPermission(message.member)) {
-            return message.react('❌');
-        }
-
-        const textToSend = message.content.slice(3).trim();
-        if (!textToSend) return message.react('❌');
-
-        // تحديث أسماء الأزرار لتكون واضحة (أوفلاين، أونلاين، الكل)
+        // إنشاء الأزرار الثلاثة المطلوبة
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`bc_offline_${Buffer.from(textToSend).toString('base64')}`).setLabel('أوفلاين').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId(`bc_online_${Buffer.from(textToSend).toString('base64')}`).setLabel('أونلاين').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId(`bc_all_${Buffer.from(textToSend).toString('base64')}`).setLabel('الكل').setStyle(ButtonStyle.Secondary)
+            new ButtonBuilder()
+                .setCustomId('bc_online')
+                .setLabel('اونلاين')
+                .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+                .setCustomId('bc_offline')
+                .setLabel('اوفلاين')
+                .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('bc_all')
+                .setLabel('الكل')
+                .setStyle(ButtonStyle.Primary)
         );
 
-        await message.reply({ components: [row] });
-        await message.delete();
+        try {
+            // إرسال رسالة الأزرار واختيار نوع البرودكاست
+            const sentMsg = await message.reply({
+                content: `**اختر فئة الأعضاء المستهدفة للبرودكاست:**\n> ${args}`,
+                components: [row]
+            });
+
+collector.on('collect', async (interaction) => {
+    if (interaction.user.id !== message.author.id) {
+        return interaction.reply({ content: 'هذه الأزرار ليست لك!', ephemeral: true });
     }
+
+    await interaction.deferUpdate();
+
+    // جلب جميع أعضاء السيرفر للتأكد من حالتهم
+    await message.guild.members.fetch();
+
+    let membersToSend = [];
+
+    if (interaction.customId === 'bc_online') {
+        // المتصلين فقط (حالتهم غير offline)
+        membersToSend = message.guild.members.cache.filter(m => !m.user.bot && m.presence && m.presence.status !== 'offline');
+    } else if (interaction.customId === 'bc_offline') {
+        // غير المتصلين (أوفلاين أو ليس لديهم بريزنس مسجل)
+        membersToSend = message.guild.members.cache.filter(m => !m.user.bot && (!m.presence || m.presence.status === 'offline'));
+    } else if (interaction.customId === 'bc_all') {
+        // الكل (ما عدا البوتات)
+        membersToSend = message.guild.members.cache.filter(m => !m.user.bot);
+    }
+
+    // تعديل الرسالة وإزالة الأزرار بعد الاختيار
+    await sentMsg.edit({ content: 'جاري إرسال البرودكاست...', components: [] }).catch(() => {});
+
+    // إرسال الرسالة بالخاص لكل عضو بدون أي كلام اضافي
+    let successCount = 0;
+    for (const [, member] of membersToSend) {
+        try {
+            await member.send(args);
+            successCount++;
+        } catch (err) {
+            // تجاهل الأعضاء الذين يغلقون رسائل الخاص
+        }
+    }
+
+    // وضع رياكشن صح إذا تمت العملية بنجاح
+    await message.react('✅').catch(() => {});
 });
 
-client.on('interactionCreate', async interaction => {
-    if (!interaction.isButton()) return;
-    if (interaction.customId.startsWith('bc_')) {
-        await interaction.deferReply({ ephemeral: true });
-        
-        const type = interaction.customId.split('_')[1];
-        const text = Buffer.from(interaction.customId.split('_')[2], 'base64').toString('utf-8');
+collector.on('end', async () => {
+    await sentMsg.edit({ components: [] }).catch(() => {});
+});
 
-        await interaction.guild.members.fetch();
-        let members = interaction.guild.members.cache.filter(m => !m.user.bot);
-        
-        // التوزيع الصحيح حسب الزر المضغوط
-        if (type === 'offline') members = members.filter(m => !m.presence || m.presence.status === 'offline');
-        else if (type === 'online') members = members.filter(m => m.presence && m.presence.status !== 'offline');
-        // زر 'all' سيشمل الجميع بدون فلترة
-
-        let count = 0;
-        for (const [id, member] of members) {
-            try { await member.send(text); count++; } catch (e) {}
+        } catch (error) {
+            // إذا حدث أي خطأ يتم وضع رياكشن خطأ
+            return message.react('❌').catch(() => {});
         }
-        await interaction.editReply(`تم الإرسال لـ ${count} عضو.`);
     }
 });
 
